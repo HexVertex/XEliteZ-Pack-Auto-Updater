@@ -6,8 +6,8 @@ import net.minecraft.client.gui.GuiScreen;
 
 public class GuiUpdater extends GuiScreen
 {
-	public byte updatingProgress = 0;
-	public String text = "";
+	public static byte updatingProgress = 0;
+	public static String text = "";
 	
     public void drawScreen(int par1, int par2, float par3)
     {

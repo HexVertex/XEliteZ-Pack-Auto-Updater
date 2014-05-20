@@ -17,9 +17,9 @@ buildscript {
 
 apply plugin: 'forge'
 
-version = "1.6.4-1.3.0"
-group= "xelitez.frostcraft"
-archivesBaseName = "Frostcraft"
+version = "1.6.4-1.0.0"
+group= "xelitez.pack"
+archivesBaseName = "pack"
 
 minecraft {
     version = "1.6.4-9.11.1.964"
