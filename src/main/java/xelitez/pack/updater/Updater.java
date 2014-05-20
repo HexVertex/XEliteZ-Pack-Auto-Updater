@@ -252,13 +252,16 @@ public class Updater
 				gui.updatingProgress = (byte)70;
 				File versionFile = new File(packDir, "version.txt");
 				File modsFolder = new File(packDir, "minecraft/mods");
-				File configFolder = new File(packDir, "minecraft/mods");
+				File configFolder = new File(packDir, "minecraft/config");
+				File xezFolder = new File(packDir, "minecraft/XEliteZ");
 				versionFile.delete();
 				FileUtils.deleteDirectory(modsFolder);
 				FileUtils.deleteDirectory(configFolder);
+				FileUtils.deleteDirectory(xezFolder);
 				new File(extractionFile.listFiles()[0], "version.txt").renameTo(versionFile);
 				new File(extractionFile.listFiles()[0], "minecraft/mods").renameTo(modsFolder);
-				new File(extractionFile.listFiles()[0], "minecraft/mods").renameTo(configFolder);
+				new File(extractionFile.listFiles()[0], "minecraft/config").renameTo(configFolder);
+				new File(extractionFile.listFiles()[0], "minecraft/XEliteZ").renameTo(xezFolder);
 				gui.updatingProgress = (byte)90;
 			} catch (IOException e) 
 			{
