@@ -1,18 +1,24 @@
 package xelitez.pack.updater;
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+
+import org.apache.commons.io.FileUtils;
 
 import com.google.common.io.Files;
 
@@ -28,13 +34,15 @@ import cpw.mods.fml.relauncher.Side;
 @Mod(
 		modid = "XEZPackUpdater",
 		name = "XEZPackUpdater",
-		version = "1.3.0")
+		version = "1.0.0")
 public class Updater 
 {
 	@Instance(value = "XEZPackUpdater")
 	public static Updater instance;
 	
 	public int scenario = 0;
+	
+	public static final GuiUpdater gui = new GuiUpdater();
 	
 	@EventHandler
     public void postload(FMLPostInitializationEvent evt)
@@ -47,13 +55,13 @@ public class Updater
 		
 	}
 	
-	@SuppressWarnings("unused")
-	private void checkVersion()
+	public void checkVersion()
 	{
 		new Thread() 
 		{
-			public void Run()
+    		public void run()
 			{
+				gui.text = "Connecting";
 				String remoteVersion = "";
 				String localVersion = "";
 				String UpdateURL = "";
@@ -79,7 +87,8 @@ public class Updater
 				}
 				catch(Exception e)
 				{
-
+					gui.text = "Something went wrong";
+					e.printStackTrace();
 				}
 				File mcDir = (File)FMLInjectionData.data()[6];
 				File instancesFolder = mcDir.getParentFile().getParentFile();
@@ -107,7 +116,8 @@ public class Updater
 								localVersion = Files.readFirstLine(localVersionFile, StandardCharsets.UTF_8);
 							} 
 							catch (IOException e) {
-
+								gui.text = "Something went while reading localVersion";
+								e.printStackTrace();
 							}
 						}
 						if(localVersion.isEmpty())
@@ -127,7 +137,7 @@ public class Updater
 				}
 				else
 				{
-					GuiUpdater.text = "This mod is only to update from MultiMC launcher";
+					gui.text = "This mod is only to update from MultiMC launcher";
 				}
 			}
 		}.start();
@@ -143,7 +153,7 @@ public class Updater
 		catch (MalformedURLException e) {
 			e.printStackTrace();
 		}
-		GuiUpdater.text = "connecting";
+		gui.text = "Downloading";
 		String strr = url.getFile()
 				.substring(url.getFile().lastIndexOf("/"))
 				.replaceAll("%5B", "[")
@@ -160,7 +170,7 @@ public class Updater
 			InputStream reader = url.openStream();
 			FileOutputStream writer = new FileOutputStream(targetFile);
 			byte[] buffer = new byte[153600];
-			int totalBytesRead = 0;
+			long totalBytesRead = 0L;
 			int bytesRead = 0;
 			int totalSize = connection.getContentLength();
 
@@ -170,76 +180,117 @@ public class Updater
 				writer.write(buffer, 0, bytesRead);
 				buffer = new byte[153600];
 				totalBytesRead += bytesRead;
-				GuiUpdater.text = new StringBuilder().append("Downloading - ").append(totalBytesRead*100/totalSize).append("% complete").toString();
-				GuiUpdater.updatingProgress = (byte)(totalBytesRead * 100 / (totalSize * 2));
-				reader.close();
-				writer.close();
+				gui.text = new StringBuilder().append("Downloading - ").append(totalBytesRead*100/totalSize).append("% complete").toString();
+				gui.updatingProgress = (byte)(totalBytesRead * 100 / (totalSize * 2));
 			}
+			reader.close();
+			writer.close();
 		}
 		catch(Exception e) {
-			
+			e.printStackTrace();
 		}
 		this.processZipFile(targetFile, packDir);
 		FMLClientHandler.instance().getClient().shutdown();
 		
 	}
 	
-	@SuppressWarnings("resource")
+	@SuppressWarnings("rawtypes")
 	private void processZipFile(File file, File packDir)
 	{
 		File extractionFile = new File(file.getParentFile(), "extracted");
-		try {
-			GuiUpdater.text = "Extracting " + file.getName();
-			GuiUpdater.updatingProgress = (byte)60;
-			ZipFile zip = new ZipFile(file);
-			while(zip.entries().hasMoreElements())
-			{
-				InputStream reader = zip.getInputStream(zip.entries().nextElement());;
-				FileOutputStream writer = new FileOutputStream(extractionFile);
-				byte[] buffer = new byte[153600];
-				int bytesRead = 0;
+    	if(!extractionFile.exists())
+    	{
+    		extractionFile.mkdir();
+    	}
+    	ZipFile zipFile;
+    	Enumeration entries;
+    	try {
+    		zipFile = new ZipFile(file.getAbsolutePath());
 
+    		entries = zipFile.entries();
 
-				while ((bytesRead = reader.read(buffer)) > 0) 
-				{  
-					writer.write(buffer, 0, bytesRead);
-					buffer = new byte[153600];
-					reader.close();
-					writer.close();
-				}
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+    		while(entries.hasMoreElements()) {
+    			ZipEntry entry = (ZipEntry)entries.nextElement();
+
+    			if(entry.isDirectory()) {
+    				// Assume directories are stored parents first then children.
+    				System.err.println("Extracting directory: " + entry.getName());
+    				// This is not robust, just for demonstration purposes.
+    				(new File(extractionFile, entry.getName())).mkdir();
+    				continue;
+    			}
+
+    			System.err.println("Extracting file: " + entry.getName());
+    			copyInputStream(zipFile.getInputStream(entry),
+    					new BufferedOutputStream(new FileOutputStream(new File(extractionFile, entry.getName()))));
+    		}
+
+    		zipFile.close();
+    	} catch (IOException ioe) {
+    		System.err.println("Unhandled exception:");
+    		ioe.printStackTrace();
+    		return;
+    	}
 		if(scenario == 1)
 		{
-			GuiUpdater.text = "Copying mods";
+			gui.text = "Copying mods";
+			if(packDir.exists())
+			{
+				try {
+					FileUtils.deleteDirectory(packDir);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
 			extractionFile.listFiles()[0].renameTo(packDir);
 		}
 		if(scenario == 2)
 		{
-			GuiUpdater.text = "Copying mods";
-			GuiUpdater.updatingProgress = (byte)70;
-			File versionFile = new File(packDir, "version.txt");
-			File modsFolder = new File(packDir, "minecraft/mods");
-			File configFolder = new File(packDir, "minecraft/mods");
-			versionFile.delete();
-			modsFolder.delete();
-			configFolder.delete();
-			new File(extractionFile.listFiles()[0], "version.txt").renameTo(versionFile);
-			new File(extractionFile.listFiles()[0], "minecraft/mods").renameTo(modsFolder);
-			new File(extractionFile.listFiles()[0], "minecraft/mods").renameTo(configFolder);
-			GuiUpdater.updatingProgress = (byte)90;
+			try {
+				gui.text = "Copying mods";
+				gui.updatingProgress = (byte)70;
+				File versionFile = new File(packDir, "version.txt");
+				File modsFolder = new File(packDir, "minecraft/mods");
+				File configFolder = new File(packDir, "minecraft/mods");
+				versionFile.delete();
+				FileUtils.deleteDirectory(modsFolder);
+				FileUtils.deleteDirectory(configFolder);
+				new File(extractionFile.listFiles()[0], "version.txt").renameTo(versionFile);
+				new File(extractionFile.listFiles()[0], "minecraft/mods").renameTo(modsFolder);
+				new File(extractionFile.listFiles()[0], "minecraft/mods").renameTo(configFolder);
+				gui.updatingProgress = (byte)90;
+			} catch (IOException e) 
+			{
+				e.printStackTrace();
+			}
 		}
 		this.cleanup(file.getParentFile(), file);
 	}
 	
+	public static final void copyInputStream(InputStream in, OutputStream out) throws IOException
+	{
+		byte[] buffer = new byte[1024];
+		int len;
+
+		while((len = in.read(buffer)) >= 0)
+			out.write(buffer, 0, len);
+
+		in.close();
+		out.close();
+	}
+	
 	private void cleanup(File file, File zip)
 	{
-		GuiUpdater.text = "Cleaning Up";
-		new File(file, "extracted").delete();
-		file.delete();
-		GuiUpdater.updatingProgress = (byte)100;
+		gui.text = "Cleaning Up";
+		try {
+			FileUtils.deleteDirectory(new File(file, "extracted"));
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		zip.delete();
+		gui.updatingProgress = (byte)100;
 	}
 	
 }

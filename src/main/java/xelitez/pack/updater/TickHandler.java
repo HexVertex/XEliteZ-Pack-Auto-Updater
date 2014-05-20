@@ -20,7 +20,8 @@ public class TickHandler implements ITickHandler{
 	{
 		if(FMLClientHandler.instance().getClient().currentScreen instanceof GuiMainMenu)
 		{
-			FMLClientHandler.instance().getClient().displayGuiScreen(new GuiUpdater());
+			FMLClientHandler.instance().getClient().displayGuiScreen(Updater.gui);
+			Updater.instance.checkVersion();
 		}
 		
 	}
